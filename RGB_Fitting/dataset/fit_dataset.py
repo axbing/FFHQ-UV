@@ -1,8 +1,9 @@
 import torch
 import numpy as np
 from scipy.io import loadmat
-
-from utils.data_utils import read_img, img3channel, img2mask, np2pillow, pillow2np, np2tensor
+import cv2
+from time import strftime
+from utils.data_utils import read_img, img3channel, img2mask, np2pillow, pillow2np, nps2tensors, np2tensor
 from utils.preprocess_utils import align_img, estimate_norm
 from third_party import Landmark68_API, SkinMask_API, FaceParsing_API
 
@@ -67,3 +68,89 @@ class FitDataset:
                 'M': M_tensor,
                 'trans_params': trans_params
             }
+
+    def get_mp4_data(self, mp4_path, mask=False):
+        with torch.no_grad():
+            cap = cv2.VideoCapture(mp4_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+            mp4_array_result = {
+                'img': [],
+                'skin_mask': [],
+                'parse_mask': [],
+                'lm': [],
+                'M': [],
+                'trans_params': []
+            }
+            frame_index = 0
+            while cap.isOpened():
+                print(f"{strftime('%H:%M:%S')} handling frame_index={frame_index}")
+                if frame_index >= fps:
+                    break
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_index += 1
+                # BGR --> RGB
+                input_img = frame[:, :, [2, 1, 0]]
+                raw_img = np2pillow(input_img)
+                # detect 68 landmarks
+                raw_lm = self.lm68_model(input_img)
+                if raw_lm is None:
+                    return None
+                    
+                raw_lm = raw_lm.astype(np.float32)
+
+                # calculate skin attention mask
+                if mask:
+                    raw_skin_mask = self.skin_model(input_img, return_uint8=True)
+                    raw_skin_mask = img3channel(raw_skin_mask)
+                    raw_skin_mask = np2pillow(raw_skin_mask)
+
+                    # face parsing mask
+                    require_part = ['face', 'l_eye', 'r_eye', 'mouth']
+                    seg_mask_dict, _ = self.parsing_model(input_img, require_part=require_part)
+                    face_mask = seg_mask_dict['face']
+                    ex_mouth_mask = 1 - seg_mask_dict['mouth']
+                    ex_eye_mask = 1 - img2mask(seg_mask_dict['l_eye'] + seg_mask_dict['r_eye'], thre=0.5)
+                    raw_parse_mask = face_mask * ex_mouth_mask * ex_eye_mask
+                    raw_parse_mask = np2pillow(raw_parse_mask, src_range=1.0)
+                else:
+                    raw_skin_mask = None
+                    raw_parse_mask = None
+
+                # alignment
+                #trans_params, img, lm, skin_mask, parse_mask = align_img(raw_img, raw_lm, self.lm68_3d, raw_skin_mask,
+                #                                                        raw_parse_mask)
+                trans_params, img, lm, skin_mask, parse_mask = align_img(raw_img, raw_lm, self.lm68_3d, raw_skin_mask,
+                                         raw_parse_mask)
+                M = np.array(estimate_norm(lm, height)).astype(np.float32)
+                lm = np.array(lm).astype(np.float32)
+                mp4_array_result['img'].append(pillow2np(img))
+                if mask:
+                    mp4_array_result['skin_mask'].append(pillow2np(skin_mask)[:, :, :1])
+                    mp4_array_result['parse_mask'].append(pillow2np(parse_mask)[:, :, :1])
+                mp4_array_result['lm'].append(lm)
+                mp4_array_result['M'].append(M)
+                mp4_array_result['trans_params'].append(trans_params)
+            
+            mp4_result = {}
+            mp4_result['img'] = nps2tensors(np.array(mp4_array_result['img']))
+            if mask:
+                mp4_result['skin_mask'] = nps2tensors(np.array(mp4_array_result['skin_mask']))
+                mp4_result['parse_mask'] = nps2tensors(np.array(mp4_array_result['parse_mask']))
+            mp4_result['lm'] = torch.tensor(np.array(mp4_array_result['lm']))
+            mp4_result['M'] = torch.tensor(np.array(mp4_array_result['M']))
+            mp4_result['trans_params'] = mp4_array_result['trans_params']
+
+        return mp4_result
+            
+
+                
+
+
+
+
+

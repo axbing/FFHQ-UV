@@ -60,10 +60,18 @@ def np2tensor(img, src_range=255., dst_range=1., device='cuda'):
     coef = dst_range / src_range
     return torch.from_numpy(np.array(img, dtype=np.float32) * coef).float().permute(2, 0, 1).unsqueeze(0).to(device)
 
+def nps2tensors(img, src_range=255., dst_range=1., device='cuda'):
+    coef = dst_range / src_range
+    return torch.from_numpy(np.array(img, dtype=np.float32) * coef).float().permute(0, 3, 1, 2).to(device)
+
 
 def tensor2np(img, src_range=1., dst_range=255.):
     coef = dst_range / src_range
     return (img[0] * coef).permute(1, 2, 0).detach().cpu().numpy()
+
+def tensors2nps(img, src_range=1., dst_range=255.):
+    coef = dst_range / src_range
+    return (img * coef).permute(0, 2, 3, 1).detach().cpu().numpy()
 
 
 def img3channel(img):
