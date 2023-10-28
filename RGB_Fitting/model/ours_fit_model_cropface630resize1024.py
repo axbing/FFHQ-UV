@@ -168,6 +168,38 @@ class FitModel:
             # render front face
             self.render_face_mask, _, self.render_face = \
                 self.renderer(self.pred_vertex, self.facemodel.face_buf, feat=self.pred_color)
+    
+    def render_one_frame(self, input_data, frame_size, background, uv_image, logger):
+        # fix random seed
+        setup_seed(123)
+
+        # print args
+        # logger.write_txt_log(self.gather_args_str())
+
+        fov = 2 * np.arctan(self.args_model['center'] / self.args_model['focal']) * 180 / np.pi
+        renderer = MeshRenderer(fov=fov,
+                                znear=self.args_model['znear'],
+                                zfar=self.args_model['zfar'])
+
+        #--------- Stage 1 - getting initial coeffs by Deep3D NN inference ---------
+
+        # logger.write_txt_log('Stage 1 getting initial coeffs by Deep3D NN inference.')
+        with torch.no_grad():
+            pred_coeffs = self.net_recon_deep3d(input_data['img'].to(self.device))
+
+        pred_coeffs_dict = self.facemodel.split_coeff(pred_coeffs)
+        
+        pred_vertex, pred_tex, pred_shading, pred_color, pred_lm = self.facemodel.compute_for_render(pred_coeffs_dict)        
+        
+        # render front face
+        vertex_uv_coord = self.facemodel.vtx_vt.unsqueeze(0).repeat(pred_coeffs.size()[0], 1, 1)
+        render_feat = torch.cat([vertex_uv_coord, pred_shading], axis=2)
+        render_face_mask, _, render_face = \
+            renderer(pred_vertex, self.facemodel.face_buf, feat=render_feat, uv_map=uv_image)
+        if background is not None:
+            render_face = render_face * render_face_mask + (1 - render_face_mask) * background
+
+        return render_face
 
     def visualize(self, input_data, is_uv_tex=True):
         # input data
@@ -233,6 +265,21 @@ class FitModel:
         write_mesh_obj(mesh_info=id_mesh_info, file_path=os.path.join(path, f'{mesh_name[:-4]}_id{mesh_name[-4:]}'))
         write_mesh_obj(mesh_info=exp_mesh_info, file_path=os.path.join(path, f'{mesh_name[:-4]}_exp{mesh_name[-4:]}'))
 
+    def save_all_exp_mesh(self, path, mesh_name):
+        pred_coeffs_dict = self.facemodel.split_coeff(self.pred_coeffs)
+        pred_coeffs_dict['id'][:, :] = 0.0
+        pred_coeffs_dict['exp'][:, :] = 0.0
+        for i in range(45):
+            pred_coeffs_dict['exp'][:, i] = 1.0
+            pred_id_vertex, pred_exp_vertex, pred_alb_tex = self.facemodel.compute_for_mesh(pred_coeffs_dict)
+            pred_coeffs_dict['exp'][:, i] = 0.0
+            exp_mesh_info = {
+                'v': pred_exp_vertex.detach()[0].cpu().numpy(),
+                'vt': pred_alb_tex.detach()[0].cpu().numpy(),
+                'fv': self.facemodel.head_buf.cpu().numpy()
+            }
+            write_mesh_obj(mesh_info=exp_mesh_info, file_path=os.path.join(path, f'{mesh_name[:-4]}_{i}{mesh_name[-4:]}'))
+
     def save_coeffs(self, path, coeffs_name, is_uv_tex=True):
         # coeffs & landmarks
         coeffs_info = {'coeffs': self.pred_coeffs, 'lm68': self.pred_lm}
@@ -271,6 +318,7 @@ class FitModel:
         vis_tex_uv = self.visualize_3dmmtex_as_uv()
         logger.write_disk_images([vis_img], ['stage1_vis'])
         logger.write_disk_images([vis_tex_uv], ['stage1_vis_3dmmtex_as_uv'])
+        # self.save_all_exp_mesh(path=logger.vis_dir, mesh_name='all_expression.obj')
         self.save_mesh(path=logger.vis_dir, mesh_name='stage1_mesh.obj', is_uv_tex=False)
         self.save_coeffs(path=logger.vis_dir, coeffs_name='stage1_coeffs.pt', is_uv_tex=False)
 

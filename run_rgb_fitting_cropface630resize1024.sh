@@ -8,8 +8,8 @@ set -e
 # checkpoints_dir: the directory of the used checkpoints
 # topo_assets_dir: the directory of the topo assets, e.g., 3DMM, masks, etc.
 #################################################################
-input_dir=../examples/fitting_examples/inputs
-output_dir=../examples/fitting_examples/outputs-cropface630resize1024
+input_dir=../mp4s
+output_dir=../mp4s_outputs
 checkpoints_dir=../checkpoints
 topo_assets_dir=../topo_assets
 

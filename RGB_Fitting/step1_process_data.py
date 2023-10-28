@@ -60,10 +60,12 @@ if __name__ == '__main__':
         skin_img = img3channel(skin_img)
         parse_mask = tensor2np(input_data['parse_mask'][:1, :, :, :], dst_range=1.0)
         parse_img = draw_mask(input_img, parse_mask)
+        mouth_mask = tensor2np(input_data['mouth_mask'][:1, :, :, :], dst_range=1.0)
+        mouth = draw_mask(input_img, mouth_mask)
         gt_lm = input_data['lm'][0, :, :].detach().cpu().numpy()
         gt_lm[..., 1] = input_img.shape[0] - 1 - gt_lm[..., 1]
         lm_img = draw_landmarks(input_img, gt_lm, color='b')
-        combine_img = np.concatenate([input_img, skin_img, parse_img, lm_img], axis=1)
+        combine_img = np.concatenate([input_img, skin_img, parse_img, lm_img, mouth], axis=1)
         save_img(combine_img, os.path.join(args.output_dir + '_vis', f'{basename}.png'))
 
         toc = time.time()

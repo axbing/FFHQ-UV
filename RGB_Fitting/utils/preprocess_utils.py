@@ -35,7 +35,7 @@ def POS(xp, x):
 
 
 # resize and crop images
-def resize_n_crop_img(img, lm, t, s, target_size=224., skin_mask=None, parse_mask=None):
+def resize_n_crop_img(img, lm, t, s, target_size=224., skin_mask=None, parse_mask=None, mouth_mask=None):
     w0, h0 = img.size
     w = (w0 * s).astype(np.int32)
     h = (h0 * s).astype(np.int32)
@@ -55,10 +55,14 @@ def resize_n_crop_img(img, lm, t, s, target_size=224., skin_mask=None, parse_mas
         parse_mask = parse_mask.resize((w, h), resample=Image.BICUBIC)
         parse_mask = parse_mask.crop((left, up, right, below))
 
+    if mouth_mask is not None:
+        mouth_mask = mouth_mask.resize((w, h), resample=Image.BICUBIC)
+        mouth_mask = mouth_mask.crop((left, up, right, below))
+
     lm = np.stack([lm[:, 0] - t[0] + w0 / 2, lm[:, 1] - t[1] + h0 / 2], axis=1) * s
     lm = lm - np.reshape(np.array([(w / 2 - target_size / 2), (h / 2 - target_size / 2)]), [1, 2])
 
-    return img, lm, skin_mask, parse_mask
+    return img, lm, skin_mask, parse_mask, mouth_mask
 
 
 def extract_5p(lm):
@@ -73,7 +77,7 @@ def extract_5p(lm):
     return lm5p
 
 
-def align_img(img, lm, lm3D, skin_mask=None, parse_mask=None, target_size=224., rescale_factor=102.):
+def align_img(img, lm, lm3D, skin_mask=None, parse_mask=None, mouth_mask=None, target_size=224., rescale_factor=102.):
     """
     Return:
         transparams        --numpy.array  (raw_W, raw_H, scale, tx, ty)
@@ -81,6 +85,7 @@ def align_img(img, lm, lm3D, skin_mask=None, parse_mask=None, target_size=224., 
         lm_new             --numpy.array  (68, 2), y direction is opposite to v direction
         skin_mask_new      --PIL.Image  (target_size, target_size, 3)
         parse_mask_new     --PIL.Image  (target_size, target_size, 3)
+        mouth_mask_new     --PIL.Image  (target_size, target_size, 3)
     
     Parameters:
         img                --PIL.Image  (raw_H, raw_W, 3)
@@ -99,16 +104,17 @@ def align_img(img, lm, lm3D, skin_mask=None, parse_mask=None, target_size=224., 
     s = rescale_factor / s
 
     # processing the image
-    img_new, lm_new, skin_mask_new, parse_mask_new = resize_n_crop_img(img,
+    img_new, lm_new, skin_mask_new, parse_mask_new, mouth_mask_new = resize_n_crop_img(img,
                                                                        lm,
                                                                        t,
                                                                        s,
                                                                        target_size=target_size,
                                                                        skin_mask=skin_mask,
-                                                                       parse_mask=parse_mask)
+                                                                       parse_mask=parse_mask,
+                                                                       mouth_mask=mouth_mask)
     trans_params = np.array([w0, h0, s, t[0], t[1]])
 
-    return trans_params, img_new, lm_new, skin_mask_new, parse_mask_new
+    return trans_params, img_new, lm_new, skin_mask_new, parse_mask_new, mouth_mask_new
 
 
 # utils for face recognition model

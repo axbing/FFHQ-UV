@@ -2,7 +2,7 @@ from .mtcnn.detect_face_with_mtcnn import load_mtcnn_graph, detect_faceAPI
 from .landmark68.detect_lm68 import load_lm_graph, detect_68p
 from .face_parsing.face_parsing import load_face_parsing, get_seg_img
 from .skin_mask.skin_mask import skinmask
-
+import numpy as np
 
 class MTCNN_API:
 
@@ -28,6 +28,23 @@ class MTCNN_API:
         five_points = detect_faceAPI(img, self.pnet, self.rnet, self.onet)
         return five_points
 
+class FAN:
+    def __init__(self):
+        import face_alignment
+        self.model = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
+
+    def __call__(self, image):
+        '''
+        image: 0-255, uint8, rgb, [h, w, 3]
+        '''
+        out = self.model.get_landmarks(image)
+
+        if out is None:
+            return None
+        else:
+            lms = np.array(out[0])
+            lms[:, 1] = image.shape[0] - 1 - lms[:, 1]
+            return lms
 
 class Landmark68_API:
 
