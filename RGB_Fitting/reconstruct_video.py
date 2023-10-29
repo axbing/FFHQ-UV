@@ -55,22 +55,22 @@ def main(args):
     success,image = cap.read()
     count = 0
     first_input_data = dataset_op.get_input_data(image)
-    width, height, scale, x_offset, y_offset = first_input_data['trans_params']
-    x_offset = x_offset[0]
-    y_offset = y_offset[0]
-    search_width = 224 * 2 / scale
-    center_x = x_offset + 224  / 2 / scale
-    center_y = y_offset + 224  / 2 / scale
-    left = max(int(center_x - search_width / 2), 0)
-    right = min(int(center_x + search_width / 2), width - 1)
-    top = max(int(center_y - search_width / 2), 0)
-    bottom = min(int(center_y + search_width / 2), height - 1)
+    # width, height, scale, x_offset, y_offset = first_input_data['trans_params']
+    # x_offset = x_offset[0]
+    # y_offset = y_offset[0]
+    # search_width = 224 * 2 / scale
+    # center_x = x_offset + 224  / 2 / scale
+    # center_y = y_offset + 224  / 2 / scale
+    # left = max(int(center_x - search_width / 2), 0)
+    # right = min(int(center_x + search_width / 2), width - 1)
+    # top = max(int(center_y - search_width / 2), 0)
+    # bottom = min(int(center_y + search_width / 2), height - 1)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
 
     for i in tqdm(range(frame_count), "Video Frame Handle"):
         # BGR --> RGB
-        image = image[top:bottom, left:right, [2, 1, 0]]
+        image = image[:, :, [2, 1, 0]]
         input_data = dataset_op.get_input_data(image, False)
         face = fit_model.render_one_frame(input_data, 224, None, uv_img, logger)
         input = np.clip(tensor2np(input_data['img']), 0, 255).astype(np.uint8)

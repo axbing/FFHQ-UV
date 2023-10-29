@@ -45,7 +45,7 @@ class MeshRenderer(nn.Module):
 
         if self.ctx is None:
             self.ctx = dr.RasterizeCudaContext(device=device)
-            print("create cuda ctx on device cuda:%d" % (device.index))
+            # print("create cuda ctx on device cuda:%d" % (device.index))
 
         # trans to homogeneous coordinates of 3d vertices, the direction of y is the same as v
         if vertex.shape[-1] == 3:

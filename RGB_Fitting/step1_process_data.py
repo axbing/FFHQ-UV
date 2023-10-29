@@ -6,6 +6,7 @@ import numpy as np
 
 from dataset.fit_dataset import FitDataset
 from utils.data_utils import tensor2np, img3channel, draw_mask, draw_landmarks, save_img
+from glob import glob
 
 if __name__ == '__main__':
     '''Usage
@@ -42,14 +43,16 @@ if __name__ == '__main__':
 
     os.makedirs(args.output_dir, exist_ok=True)
     os.makedirs(args.output_dir + '_vis', exist_ok=True)
-    fnames = [
-        fn for fn in sorted(os.listdir(args.input_dir))
-        if fn.endswith('.jpg') or fn.endswith('.png') or fn.endswith('.jpeg')
-    ]
+    testpath = args.input_dir
+    if os.path.isdir(testpath): 
+        fnames = glob(testpath + '/*.jpg') +  glob(testpath + '/*.png') + glob(testpath + '/*.bmp')
+    elif os.path.isfile(testpath) and (testpath[-3:] in ['jpg', 'png', 'bmp', 'jpeg', 'mp4']):
+        fnames = [testpath]
+
     for fn in fnames:
         tic = time.time()
-        basename = fn[:fn.rfind('.')]
-        input_data = dataset_op.get_input_data(os.path.join(args.input_dir, fn))
+        basename = os.path.basename(fn).split('.')[0]
+        input_data = dataset_op.get_input_data(fn)
         if input_data is None:
             continue
 

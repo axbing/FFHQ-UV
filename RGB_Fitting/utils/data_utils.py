@@ -5,6 +5,7 @@ import cv2
 import random
 
 
+
 def setup_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -21,8 +22,36 @@ def pillow2np(img, dst_range=255.):
     coef = dst_range / 255.
     return np.asarray(img, np.float32) * coef
 
+def read_mp4(path, resize=None, rescale=1.0, dst_range=255., sample_count=16):
+    cap = cv2.VideoCapture(path)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    frame_index = 0
+    sample_index = 0
+    imgs = []
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if frame_count < sample_count or frame_index == sample_index * frame_count // sample_count:
+            # we need this frame
+            img = frame[:, :, [2, 1, 0]]
+            if resize is not None:
+                img = cv2.resize(img, resize)
+            
+            if rescale != 1.0:
+                img = cv2.resize(img, fx=rescale, fy=rescale)
+            
+            imgs.append(img)
+            sample_index += 1
+
+        frame_index += 1
+    return np.array(imgs)
+
 
 def read_img(path, resize=None, rescale=1.0, dst_range=255.):
+    if path.endswith(".mp4"):
+        return read_mp4(path, resize, rescale, dst_range)
     img = Image.open(path).convert('RGB')
 
     if resize is not None:
